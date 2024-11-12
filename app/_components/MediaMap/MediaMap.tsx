@@ -34,6 +34,17 @@ export const MediaMap = ({ medias, accessToken }: { medias: Media[], accessToken
     });
   };
 
+  const geojson = {
+    type: 'FeatureCollection',
+    features: medias.map((media) => ({
+      type: 'Feature',
+      geometry: {
+        type: 'Point',
+        coordinates: [media.longitude, media.latitude]
+      }
+    }))
+  };
+
   return (
     <>
       <Map
@@ -50,9 +61,9 @@ export const MediaMap = ({ medias, accessToken }: { medias: Media[], accessToken
         ref={mapRef}
       >
         <Source
-          id="earthquakes"
+          id="medias"
           type="geojson"
-          data="https://docs.mapbox.com/mapbox-gl-js/assets/earthquakes.geojson"
+          data={geojson}
           cluster={true}
           clusterMaxZoom={14}
           clusterRadius={50}
