@@ -1,4 +1,4 @@
-import { PrismaClient, Media } from '@prisma/client';
+import { PrismaClient } from '@prisma/client';
 const prisma = new PrismaClient();
 
 type DataEntry = {
@@ -56,7 +56,7 @@ async function getResource(
 async function getFinalResource(path: string): Promise<DataEntry[]> {
   const firstData = await getResource(path, true);
   if (!firstData.has_more) {
-    return firstData.entries.filter(entry => entry['.tag'] === 'file');
+    return firstData.entries.filter((entry) => entry['.tag'] === 'file');
   }
 
   const raw = JSON.stringify({
@@ -75,11 +75,15 @@ async function getFinalResource(path: string): Promise<DataEntry[]> {
 
   const endpoint = 'https://api.dropboxapi.com/2/files/list_folder/continue';
   const response = await fetch(endpoint, requestOptions);
-  const secondData: { entries: DataEntry[]; has_more: boolean; cursor?: string } = await response.json();
+  const secondData: {
+    entries: DataEntry[];
+    has_more: boolean;
+    cursor?: string;
+  } = await response.json();
 
   return [
-    ...firstData.entries.filter(entry => entry['.tag'] === 'file'),
-    ...secondData.entries.filter(entry => entry['.tag'] === 'file'),
+    ...firstData.entries.filter((entry) => entry['.tag'] === 'file'),
+    ...secondData.entries.filter((entry) => entry['.tag'] === 'file'),
   ];
 }
 
@@ -122,7 +126,7 @@ async function main() {
       // console.log(files);
       files.forEach(async (file: DataEntry) => {
         const metatag = await getMetatag(file.path_display);
-        if ( !event.name || !metatag.path_display) {
+        if (!event.name || !metatag.path_display) {
           console.log(metatag);
         }
 
@@ -137,45 +141,6 @@ async function main() {
       });
     });
   });
-
-  // const alice = await prisma.media.upsert({
-  //   where: { email: 'alice@prisma.io' },
-  //   update: {},
-  //   create: {
-  //     email: 'alice@prisma.io',
-  //     name: 'Alice',
-  //     posts: {
-  //       create: {
-  //         title: 'Check out Prisma with Next.js',
-  //         content: 'https://www.prisma.io/nextjs',
-  //         published: true,
-  //       },
-  //     },
-  //   },
-  // });
-  // const bob = await prisma.user.upsert({
-  //   where: { email: 'bob@prisma.io' },
-  //   update: {},
-  //   create: {
-  //     email: 'bob@prisma.io',
-  //     name: 'Bob',
-  //     posts: {
-  //       create: [
-  //         {
-  //           title: 'Follow Prisma on Twitter',
-  //           content: 'https://twitter.com/prisma',
-  //           published: true,
-  //         },
-  //         {
-  //           title: 'Follow Nexus on Twitter',
-  //           content: 'https://twitter.com/nexusgql',
-  //           published: true,
-  //         },
-  //       ],
-  //     },
-  //   },
-  // });
-  // console.log({ alice, bob });
 }
 main()
   .then(async () => {

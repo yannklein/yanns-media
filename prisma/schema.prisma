@@ -24,5 +24,16 @@ model Media {
   latitude              Float?
   longitude             Float?
   event                 String?
+  images                Image[]
   @@map(name: "medias")
+}
+
+model Image {
+  id       String @default(cuid()) @id
+  publicId String @unique
+  format   String
+  version  String
+  media    Media   @relation(fields: [mediaId], references: [id])
+  mediaId  String
+  @@map(name: "images")
 }

@@ -28,7 +28,19 @@ export const MediaMap = ({
   accessToken: string;
 }) => {
   const mapStyle = 'mapbox://styles/mapbox/streets-v9';
+  const style = { width: '100vw', height: '600px' };
   const mapRef = useRef<MapRef>(null);
+  const geojson = {
+    type: 'FeatureCollection',
+    features: medias.map((media) => ({
+      type: 'Feature',
+      geometry: {
+        type: 'Point',
+        coordinates: [media.longitude, media.latitude],
+      },
+    })),
+  };
+  const [minLng, minLat, maxLng, maxLat] = bbox(geojson as GeoJSON.GeoJSON);
 
   const onClick = (event: MapMouseEvent) => {
     if (!event || !event.features) return;
@@ -52,21 +64,34 @@ export const MediaMap = ({
     });
   };
 
-  const geojson = {
-    type: 'FeatureCollection',
-    features: medias.map((media) => ({
-      type: 'Feature',
-      geometry: {
-        type: 'Point',
-        coordinates: [media.longitude, media.latitude],
-      },
-    })),
+  const getThumbnail = async (media: Media) => {
+    try {
+      await fetch('/api/upload-image', {
+        method: 'POST',
+        body: JSON.stringify({
+          mediaId: media.id,
+          mediaPath: media.path,
+        }),
+      });
+    } catch (error) {
+      console.error(error);
+    }
   };
 
-  const [minLng, minLat, maxLng, maxLat] = bbox(geojson as GeoJSON.GeoJSON);
+  function imageSrc(image) {
+    if (!image) return '';
+    return `https://res.cloudinary.com/${process.env.CLOUDINARY_CLOUD_NAME}/image/upload/v${image.version}/${image.publicId}.${image.format}`
+  }
 
   return (
     <>
+      <img
+        src={imageSrc(medias[1].images[0])}
+        alt="img"
+      />
+      <button onClick={async () => await getThumbnail(medias[1])}>
+        Upload!
+      </button>
       <Map
         initialViewState={{
           bounds: [minLng, minLat, maxLng, maxLat],
@@ -80,7 +105,7 @@ export const MediaMap = ({
           },
         }}
         mapStyle={mapStyle}
-        style={{ width: '100vw', height: '600px' }}
+        style={style}
         mapboxAccessToken={accessToken}
         interactiveLayerIds={[clusterLayer.id as string]}
         onClick={onClick}
