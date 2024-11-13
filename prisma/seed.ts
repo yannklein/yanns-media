@@ -1,3 +1,5 @@
+import { uploadImage } from '../utils/cloudinary';
+import { getImageBinary } from '../utils/getImageBinary';
 import { PrismaClient } from '@prisma/client';
 const prisma = new PrismaClient();
 
@@ -25,6 +27,7 @@ type MediaDTO = {
 };
 
 async function resetDb() {
+  await prisma.image.deleteMany({});
   await prisma.media.deleteMany({});
 }
 
@@ -109,7 +112,7 @@ async function getMetatag(path: string): Promise<any> {
 }
 
 async function createMedia(media: MediaDTO) {
-  await prisma.media.create({ data: media });
+  return await prisma.media.create({ data: media });
 }
 
 async function main() {
@@ -124,20 +127,35 @@ async function main() {
       // Get every media per event
       const files = await getFinalResource(event.path_display);
       // console.log(files);
-      files.forEach(async (file: DataEntry) => {
+      files.slice(0,10).forEach(async (file: DataEntry) => {
         const metatag = await getMetatag(file.path_display);
         if (!event.name || !metatag.path_display) {
           console.log(metatag);
         }
+        if (metatag?.media_info?.metadata?.location?.latitude !== undefined) {
+          const media = await createMedia({
+            dropbox_id: metatag.id,
+            path: metatag.path_display,
+            date: metatag?.media_info?.metadata?.time_taken,
+            latitude: metatag?.media_info?.metadata?.location?.latitude,
+            longitude: metatag?.media_info?.metadata?.location?.longitude,
+            event: event.name,
+          });
+          console.log(media.path);
+          const imageBinary = await getImageBinary(media.path);
+          console.log("binary caught")
+          const imageData: any = await uploadImage(imageBinary);
+          console.log("data uploaded", imageData)
 
-        await createMedia({
-          dropbox_id: metatag.id,
-          path: metatag.path_display,
-          date: metatag?.media_info?.metadata?.time_taken,
-          latitude: metatag?.media_info?.metadata?.location?.latitude,
-          longitude: metatag?.media_info?.metadata?.location?.longitude,
-          event: event.name,
-        });
+          await prisma.image.create({
+            data: {
+              publicId: imageData.public_id,
+              format: imageData.format,
+              version: imageData.version.toString(),
+              mediaId: media.id,
+            },
+          });
+        }
       });
     });
   });

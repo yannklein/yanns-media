@@ -1,6 +1,6 @@
 'use client';
-import { useRef } from 'react';
-import Map, { Layer, Source } from 'react-map-gl';
+import { useCallback, useRef } from 'react';
+import RmglInteractiveMap, { Layer, Source } from 'react-map-gl';
 
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { Media } from '@prisma/client';
@@ -34,13 +34,14 @@ export const MediaMap = ({
     type: 'FeatureCollection',
     features: medias.map((media) => ({
       type: 'Feature',
+      properties: { mediaId: media.images[0].id },
       geometry: {
         type: 'Point',
-        coordinates: [media.longitude, media.latitude],
+        coordinates: [media.longitude + (Math.random() - 0.5)/1000, media.latitude + (Math.random() - 0.5)/1000],
       },
     })),
   };
-  const [minLng, minLat, maxLng, maxLat] = bbox(geojson as GeoJSON.GeoJSON);
+  const [minLng, minLat, maxLng, maxLat] = bbox(geojson as any);
 
   const onClick = (event: MapMouseEvent) => {
     if (!event || !event.features) return;
@@ -80,19 +81,80 @@ export const MediaMap = ({
 
   function imageSrc(image) {
     if (!image) return '';
-    return `https://res.cloudinary.com/${process.env.CLOUDINARY_CLOUD_NAME}/image/upload/v${image.version}/${image.publicId}.${image.format}`
+    return `https://res.cloudinary.com/yanninthesky/image/upload/v${image.version}/${image.publicId}.${image.format}`;
   }
+
+  const mapRefCallback = useCallback(
+    (ref: MapRef | null) => {
+      if (ref !== null) {
+        //Set the actual ref we use elsewhere
+        mapRef.current = ref;
+        const map = ref;
+
+        const loadImages = () => {
+          medias.forEach((media) => {
+            if (media.images.length === 0) return;
+            
+            if (!map.hasImage(media.images[0].id)) {
+              console.log(media.images[0].id, imageSrc(media.images[0]));
+              //NOTE This is really how are you load an SVG for mapbox
+              let img = new Image();
+              img.crossOrigin = 'Anonymous'; //it's not cross origin, but this quiets the canvas error
+              img.onload = () => {
+                map.addImage(media.images[0].id, img, { sdf: false });
+              };
+              img.src = imageSrc(media.images[0]);
+
+              //NOTE ref for adding local image instead
+              // map.loadImage("./static/img/shop-15.png", (error, image) => {
+              //   if (error || image === undefined) throw error;
+              //   map.addImage("store-icon", image, { sdf: true });
+              // });
+            }
+          });
+        };
+
+        const loadImage = (id) => {
+          const media = medias.find((media) => media.images[0].id === id);
+            if (!media || media.images.length === 0) return;
+            if (!map.hasImage(media.images[0].id)) {
+              console.log(media.images[0].id, imageSrc(media.images[0]));
+              //NOTE This is really how are you load an SVG for mapbox
+              let img = new Image();
+              img.crossOrigin = 'Anonymous'; //it's not cross origin, but this quiets the canvas error
+              img.onload = () => {
+                map.addImage("hi", img, { sdf: false });
+              };
+              img.src = imageSrc(media.images[0]);
+
+              //NOTE ref for adding local image instead
+              // map.loadImage("./static/img/shop-15.png", (error, image) => {
+              //   if (error || image === undefined) throw error;
+              //   map.addImage("store-icon", image, { sdf: true });
+              // });
+            }
+        };
+
+        loadImages();
+
+        //TODO need this?
+        map.on('styleimagemissing', (e) => {
+          const id = e.id; // id of the missing image
+          console.log(id);
+          loadImage(id);
+        });
+      }
+    },
+    [medias],
+  );
 
   return (
     <>
-      <img
-        src={imageSrc(medias[1].images[0])}
-        alt="img"
-      />
+      {/* <img src={imageSrc(medias[1].images[0])} alt="img" /> */}
       <button onClick={async () => await getThumbnail(medias[1])}>
         Upload!
       </button>
-      <Map
+      <RmglInteractiveMap
         initialViewState={{
           bounds: [minLng, minLat, maxLng, maxLat],
           fitBoundsOptions: {
@@ -109,7 +171,7 @@ export const MediaMap = ({
         mapboxAccessToken={accessToken}
         interactiveLayerIds={[clusterLayer.id as string]}
         onClick={onClick}
-        ref={mapRef}
+        ref={mapRefCallback}
       >
         <Source
           id="medias"
@@ -123,7 +185,7 @@ export const MediaMap = ({
           <Layer {...clusterCountLayer} />
           <Layer {...unclusteredPointLayer} />
         </Source>
-      </Map>
+      </RmglInteractiveMap>
     </>
   );
 };
