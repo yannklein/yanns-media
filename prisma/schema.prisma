@@ -13,7 +13,6 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-
 model Media {
   id                    String      @default(cuid()) @id
   createdAt             DateTime    @default(now()) @map(name: "created_at")
@@ -24,7 +23,7 @@ model Media {
   latitude              Float?
   longitude             Float?
   event                 String?
-  images                Image[]
+  images                Image[]     @relation(name: "MediaImages")
   @@map(name: "medias")
 }
 
@@ -33,7 +32,7 @@ model Image {
   publicId String @unique
   format   String
   version  String
-  media    Media   @relation(fields: [mediaId], references: [id])
+  media    Media   @relation(name: "MediaImages", fields: [mediaId], references: [id])
   mediaId  String
   @@map(name: "images")
 }

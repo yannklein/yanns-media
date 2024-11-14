@@ -7,11 +7,7 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
-export function imageSrc(image: any) {
-  return `https://res.cloudinary.com/${process.env.CLOUD_NAME}/v${image.version}/${image.publicId}.${image.format}`
-}
-
-export function uploadImage(imageUploaded: any) {
+const uploadImage = (imageUploaded: any) => {
   try {
     return new Promise((resolve, reject) => {
       const cld_upload_stream = cloudinary.uploader.upload_stream(
@@ -32,3 +28,5 @@ export function uploadImage(imageUploaded: any) {
     console.error(error);
   }
 }
+
+export { uploadImage };

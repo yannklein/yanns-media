@@ -3,7 +3,7 @@ import { useCallback, useRef } from 'react';
 import RmglInteractiveMap, { Layer, Source } from 'react-map-gl';
 
 import 'mapbox-gl/dist/mapbox-gl.css';
-import { Media } from '@prisma/client';
+import { Media, Prisma } from '@prisma/client';
 import type { GeoJSONSource, MapMouseEvent, MapRef } from 'react-map-gl';
 import {
   clusterLayer,
@@ -20,26 +20,36 @@ interface MapGLGeoJSONFeature extends GeoJSONFeature {
   };
 }
 
+type MediaWithImages = Prisma.MediaGetPayload<{
+  include: { images: true }
+}>
+
 export const MediaMap = ({
   medias,
   accessToken,
 }: {
-  medias: Media[];
+  medias: MediaWithImages[];
   accessToken: string;
 }) => {
-  const mapStyle = 'mapbox://styles/mapbox/streets-v9';
-  const style = { width: '100vw', height: '600px' };
   const mapRef = useRef<MapRef>(null);
   const geojson = {
     type: 'FeatureCollection',
-    features: medias.map((media) => ({
-      type: 'Feature',
-      properties: { mediaId: media.images[0].id },
-      geometry: {
-        type: 'Point',
-        coordinates: [media.longitude + (Math.random() - 0.5)/1000, media.latitude + (Math.random() - 0.5)/1000],
-      },
-    })),
+    features: medias
+      .filter(
+        (media): media is MediaWithImages & { latitude: number; longitude: number } =>
+          media.latitude !== null && media.longitude !== null,
+      )
+      .map((media) => ({
+        type: 'Feature',
+        properties: { mediaId: media.images[0].id },
+        geometry: {
+          type: 'Point',
+          coordinates: [
+            media.longitude || 0 + (Math.random() - 0.5) / 1000,
+            media.latitude + (Math.random() - 0.5) / 1000,
+          ],
+        },
+      })),
   };
   const [minLng, minLat, maxLng, maxLat] = bbox(geojson as any);
 
@@ -65,25 +75,6 @@ export const MediaMap = ({
     });
   };
 
-  const getThumbnail = async (media: Media) => {
-    try {
-      await fetch('/api/upload-image', {
-        method: 'POST',
-        body: JSON.stringify({
-          mediaId: media.id,
-          mediaPath: media.path,
-        }),
-      });
-    } catch (error) {
-      console.error(error);
-    }
-  };
-
-  function imageSrc(image) {
-    if (!image) return '';
-    return `https://res.cloudinary.com/yanninthesky/image/upload/v${image.version}/${image.publicId}.${image.format}`;
-  }
-
   const mapRefCallback = useCallback(
     (ref: MapRef | null) => {
       if (ref !== null) {
@@ -94,7 +85,7 @@ export const MediaMap = ({
         const loadImages = () => {
           medias.forEach((media) => {
             if (media.images.length === 0) return;
-            
+
             if (!map.hasImage(media.images[0].id)) {
               console.log(media.images[0].id, imageSrc(media.images[0]));
               //NOTE This is really how are you load an SVG for mapbox
@@ -116,23 +107,23 @@ export const MediaMap = ({
 
         const loadImage = (id) => {
           const media = medias.find((media) => media.images[0].id === id);
-            if (!media || media.images.length === 0) return;
-            if (!map.hasImage(media.images[0].id)) {
-              console.log(media.images[0].id, imageSrc(media.images[0]));
-              //NOTE This is really how are you load an SVG for mapbox
-              let img = new Image();
-              img.crossOrigin = 'Anonymous'; //it's not cross origin, but this quiets the canvas error
-              img.onload = () => {
-                map.addImage("hi", img, { sdf: false });
-              };
-              img.src = imageSrc(media.images[0]);
+          if (!media || media.images.length === 0) return;
+          if (!map.hasImage(media.images[0].id)) {
+            console.log(media.images[0].id, imageSrc(media.images[0]));
+            //NOTE This is really how are you load an SVG for mapbox
+            let img = new Image();
+            img.crossOrigin = 'Anonymous'; //it's not cross origin, but this quiets the canvas error
+            img.onload = () => {
+              map.addImage('hi', img, { sdf: false });
+            };
+            img.src = imageSrc(media.images[0]);
 
-              //NOTE ref for adding local image instead
-              // map.loadImage("./static/img/shop-15.png", (error, image) => {
-              //   if (error || image === undefined) throw error;
-              //   map.addImage("store-icon", image, { sdf: true });
-              // });
-            }
+            //NOTE ref for adding local image instead
+            // map.loadImage("./static/img/shop-15.png", (error, image) => {
+            //   if (error || image === undefined) throw error;
+            //   map.addImage("store-icon", image, { sdf: true });
+            // });
+          }
         };
 
         loadImages();
@@ -148,12 +139,13 @@ export const MediaMap = ({
     [medias],
   );
 
+  const imageSrc = (image: any) => {
+    if (!image) return '';
+    return `https://res.cloudinary.com/yanninthesky/image/upload/v${image.version}/${image.publicId}.${image.format}`;
+  };
+
   return (
     <>
-      {/* <img src={imageSrc(medias[1].images[0])} alt="img" /> */}
-      <button onClick={async () => await getThumbnail(medias[1])}>
-        Upload!
-      </button>
       <RmglInteractiveMap
         initialViewState={{
           bounds: [minLng, minLat, maxLng, maxLat],
@@ -166,8 +158,8 @@ export const MediaMap = ({
             },
           },
         }}
-        mapStyle={mapStyle}
-        style={style}
+        mapStyle={'mapbox://styles/mapbox/streets-v9'}
+        style={{ width: '100vw', height: '600px' }}
         mapboxAccessToken={accessToken}
         interactiveLayerIds={[clusterLayer.id as string]}
         onClick={onClick}

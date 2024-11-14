@@ -1,8 +1,3 @@
-const imageSrc = (image: any) => {
-  if (!image) return '';
-  return `https://res.cloudinary.com/yanninthesky/image/upload/v${image.version}/${image.publicId}.${image.format}`;
-};
-
 const getImageBinary = async (mediaPath: string) => {
   try {
     const url = 'https://content.dropboxapi.com/2/files/get_thumbnail_v2';
@@ -29,4 +24,4 @@ const getImageBinary = async (mediaPath: string) => {
   }
 };
 
-export { getImageBinary, imageSrc };
+export { getImageBinary };
