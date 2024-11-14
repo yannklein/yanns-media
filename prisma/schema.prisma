@@ -31,7 +31,7 @@ model Image {
   id       String @default(cuid()) @id
   publicId String @unique
   format   String
-  version  String
+  version  Int
   media    Media   @relation(name: "MediaImages", fields: [mediaId], references: [id])
   mediaId  String
   @@map(name: "images")

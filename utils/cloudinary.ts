@@ -1,4 +1,4 @@
-import { v2 as cloudinary } from 'cloudinary';
+import { v2 as cloudinary, UploadApiResponse } from 'cloudinary';
 import streamifier from 'streamifier';
 
 cloudinary.config({
@@ -7,26 +7,22 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
-const uploadImage = (imageUploaded: any) => {
-  try {
-    return new Promise((resolve, reject) => {
-      const cld_upload_stream = cloudinary.uploader.upload_stream(
-        {
-          folder: 'yanns-media',
-        },
-        (error, result) => {
-          if (result) {
-            resolve(result);
-          } else {
-            reject(error);
-          }
-        },
-      );
-      streamifier.createReadStream(imageUploaded).pipe(cld_upload_stream);
-    });
-  } catch (error) {
-    console.error(error);
-  }
-}
+const uploadImage = (imageUploaded: any): Promise<UploadApiResponse> => {
+  return new Promise((resolve, reject) => {
+    const cld_upload_stream = cloudinary.uploader.upload_stream(
+      {
+        folder: 'yanns-media',
+      },
+      (error, result) => {
+        if (result) {
+          resolve(result);
+        } else {
+          reject(error);
+        }
+      },
+    );
+    streamifier.createReadStream(imageUploaded).pipe(cld_upload_stream);
+  });
+};
 
 export { uploadImage };

@@ -18,9 +18,13 @@ const getImageBinary = async (mediaPath: string) => {
     };
     const response = await fetch(url, requestOptions);
     const arrayBuffer = await response.arrayBuffer(); // Convert the response to a Blob
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}, endpoint: ${url}`);
+    }
     return Buffer.from(arrayBuffer);
   } catch (error) {
     console.error(error);
+    return null;
   }
 };
 

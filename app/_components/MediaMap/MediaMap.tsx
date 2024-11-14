@@ -43,7 +43,7 @@ export const MediaMap = ({
       )
       .map((media) => ({
         type: 'Feature',
-        properties: { mediaId: media.images[0].id },
+        properties: { mediaId: media.images[0]?.id },
         geometry: {
           type: 'Point',
           coordinates: [
