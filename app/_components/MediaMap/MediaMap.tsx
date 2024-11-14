@@ -21,8 +21,8 @@ interface MapGLGeoJSONFeature extends GeoJSONFeature {
 }
 
 type MediaWithImages = Prisma.MediaGetPayload<{
-  include: { images: true }
-}>
+  include: { images: true };
+}>;
 
 export const MediaMap = ({
   medias,
@@ -32,11 +32,13 @@ export const MediaMap = ({
   accessToken: string;
 }) => {
   const mapRef = useRef<MapRef>(null);
-  const geojson = {
+  const geojson: GeoJSON.FeatureCollection = {
     type: 'FeatureCollection',
     features: medias
       .filter(
-        (media): media is MediaWithImages & { latitude: number; longitude: number } =>
+        (
+          media,
+        ): media is MediaWithImages & { latitude: number; longitude: number } =>
           media.latitude !== null && media.longitude !== null,
       )
       .map((media) => ({
@@ -45,13 +47,13 @@ export const MediaMap = ({
         geometry: {
           type: 'Point',
           coordinates: [
-            media.longitude || 0 + (Math.random() - 0.5) / 1000,
+            media.longitude + (Math.random() - 0.5) / 1000,
             media.latitude + (Math.random() - 0.5) / 1000,
           ],
         },
       })),
   };
-  const [minLng, minLat, maxLng, maxLat] = bbox(geojson as any);
+  const [minLng, minLat, maxLng, maxLat] = bbox(geojson);
 
   const onClick = (event: MapMouseEvent) => {
     if (!event || !event.features) return;
