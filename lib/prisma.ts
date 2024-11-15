@@ -5,10 +5,27 @@ let prisma: PrismaClient;
 if (process.env.NODE_ENV === 'production') {
   prisma = new PrismaClient();
 } else {
-  if (!global.prisma) {
-    global.prisma = new PrismaClient();
+  let globalWithPrisma = global as typeof globalThis & {
+    prisma: PrismaClient;
+  };
+  if (!globalWithPrisma.prisma) {
+    globalWithPrisma.prisma = new PrismaClient();
   }
-  prisma = global.prisma;
+  prisma = globalWithPrisma.prisma;
 }
 
-export default prisma;
+const prismaExtended = prisma.$extends({
+  result: {
+    image: {
+      clPath: {
+        needs: { version: true, publicId: true, format: true },
+        compute(image) {
+          return `https://res.cloudinary.com/yanninthesky/image/upload/v${image.version}/${image.publicId}.${image.format}`;
+        },
+      },
+    },
+  },
+});
+
+
+export default prismaExtended;
