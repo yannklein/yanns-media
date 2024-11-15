@@ -1,19 +1,14 @@
-import prisma from '@/lib/prisma';
+import { getMedia } from '@/utils/getMedia';
 import { MediaMap } from '@components/MediaMap';
 
 export default async function Home() {
-  const medias = await prisma.media.findMany({
-    include: {
-      images: true,
-    },
-  });
+  const medias = await getMedia();
   const accessToken = process.env.MAPBOX_ACCESS_TOKEN as string;
-
   
   return (
     <div>
       <MediaMap
-        medias={medias}
+        initialMedias={JSON.parse(JSON.stringify(medias))}
         accessToken={accessToken}
       />
     </div>
