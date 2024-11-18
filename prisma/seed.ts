@@ -1,6 +1,8 @@
 import { uploadImage } from '../utils/cloudinary';
 import { getImageBinary } from '../utils/getImageBinary';
 import { PrismaClient } from '@prisma/client';
+import fs from 'fs';
+
 const prisma = new PrismaClient();
 
 type DataEntry = {
@@ -31,6 +33,17 @@ type ImageDTO = {
   format: string;
   version: number;
   mediaId: string;
+};
+
+let foundMedia = 0;
+let foundEvent = 0;
+let createdMedia = 0;
+let skippedMedia = {eventMissing: 0, coordsMissing: 0};
+let seedStart = new Date();
+
+const logger = (message: string) => {
+  fs.appendFileSync('./prisma/seed.log', `${message}\n`);
+  console.log(message);
 };
 
 async function resetDb() {
@@ -65,7 +78,7 @@ async function getResource(
     }
     return data;
   } catch (error) {
-    console.log(error);
+    console.error(error);
     return { entries: [], has_more: false };
   }
 }
@@ -108,7 +121,7 @@ async function getFinalResource(path: string): Promise<DataEntry[]> {
       ...secondData.entries.filter((entry) => entry['.tag'] === 'file'),
     ];
   } catch (error) {
-    console.log(error);
+    console.error(error);
     return [];
   }
 }
@@ -149,61 +162,95 @@ const createMedia = async (file: DataEntry, event: DataEntry) => {
   // Get image metatag, and only create Media for the one including coords
   const metatag = await getMetatag(file.path_display);
   if (!event.name || !metatag.path_display) {
-    console.log("Missing event or path, skipping...");
+    logger("    Missing event or path, skipping...");
+    skippedMedia.eventMissing += 1;
     return;
   }
   if (metatag?.media_info?.metadata?.location?.latitude === undefined) {
-    console.log("No coords, skipping...");
+    logger("    No coords, skipping...");
+    skippedMedia.coordsMissing += 1;
     return;
   }
+  const formattedEvent = event.name.match(/[a-zA-Z].*/)?.[0] ?? 'Unkown event';
 
-  console.log(`Storing media ${metatag.path_display} in DB)...`);
+  logger(`    Storing media ${metatag.path_display} in DB)...`);
   const media = await storeMedia({
     dropbox_id: metatag.id,
     path: metatag.path_display,
     date: metatag?.media_info?.metadata?.time_taken,
     latitude: metatag?.media_info?.metadata?.location?.latitude,
     longitude: metatag?.media_info?.metadata?.location?.longitude,
-    event: event.name,
+    event: formattedEvent,
   });
-  console.log(`Stored!`);
+  logger(`    Stored!`);
 
-  console.log(`Getting image ${media.path} from Dropbox...`);
+  logger(`    Getting image ${media.path} from Dropbox...`);
   const imageBinary = await getImageBinary(media.path);
-  console.log(`Got it!`);
+  logger(`    Got it!`);
 
-  console.log(`Uploading image ${media.path} to Cloudinary...`);
+  logger(`    Uploading image ${media.path} to Cloudinary...`);
   const imageData = await uploadImage(imageBinary);
-  console.log(`Uploaded!`);
+  logger(`    Uploaded!`);
 
-  console.log(`Storing image (public id: ${imageData.public_id} in DB)...`);
+  logger(`    Storing image (public id: ${imageData.public_id} in DB)...`);
   await storeImage({
     mediaId: media.id,
     publicId: imageData.public_id,
     format: imageData.format,
     version: imageData.version,
   });
-  console.log(`Stored!`);
+  logger(`    Stored!`);
+  createdMedia += 1;
 };
 
 async function main() {
+  logger(`
+###################################
+Seeding started! (${seedStart})  
+###################################
+  `)
+
+  logger('Clearing up DB...');
   await resetDb();
+  logger('Cleared up!');
 
   for (let year of ['2023']) {
     // Get every event per year
     const events = await getResource(`/Photos/${year}`);
+    logger(events.entries.length  + ` events found for ${year}`);
     
-    for (let event of events.entries ?? []) {
+    for (let [evIndex, event] of (events.entries ?? []).entries()) {
+      foundEvent += 1;
       // Get every media per event
+      logger(`Event n${evIndex + 1}: ${event.path_display}`);
       const files = await getFinalResource(event.path_display);
-
-      for (let file of files) {
-        console.log(`Creating Media for ${file.name}...`);
+      
+      for (let [index, file] of files.entries()) {
+        foundMedia += 1;
+        logger(`  File n${index + 1}: Creating Media for ${file.name}...`);
         await createMedia(file, event);
-        console.log(`Created!`);
+        logger(`  File n${index + 1}: Finished!\n`);
       }
     }
   }
+  const durationInSeconds = (Date.now() - seedStart.getTime()) / 1000;
+  const hours = Math.floor(durationInSeconds / 3600);
+  const minutes = Math.floor((durationInSeconds % 3600) / 60);
+  const seconds = (durationInSeconds % 60).toFixed(2);
+
+  logger(`
+###################################
+Found ${foundMedia} medias.
+Found ${foundEvent} events.
+
+Created ${createdMedia} medias.
+Skipped ${skippedMedia.eventMissing} medias because of missing event.
+Skipped ${skippedMedia.coordsMissing} medias because of missing coords.
+
+Seeding duration: ${hours} hours ${minutes} minutes ${seconds} seconds
+###################################
+    `);
+  
 }
 main()
   .then(async () => {
