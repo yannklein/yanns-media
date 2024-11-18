@@ -6,7 +6,7 @@ export default async function Home() {
   const accessToken = process.env.MAPBOX_ACCESS_TOKEN as string;
   
   return (
-    <div>
+    <div className="flex-grow flex">
       <MediaMap
         initialMedias={JSON.parse(JSON.stringify(medias))}
         accessToken={accessToken}

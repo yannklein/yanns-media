@@ -1,5 +1,5 @@
 'use client';
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import RmglInteractiveMap, { Layer, Source } from 'react-map-gl';
 import type { GeoJSONSource, MapMouseEvent, MapRef } from 'react-map-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
@@ -18,6 +18,7 @@ export const MediaMap = ({ accessToken, initialMedias }: { accessToken: string, 
   
   const mapRef = useRef<MapRef>(null);
   const [medias, setMedias] = useState<MediaWithImages[]>(initialMedias);
+  const [selectedMedia, setSelectedMedia] = useState<MediaWithImages>(medias[0]);
   const [showDetailsPopup, setShowDetailsPopup] = useState(false);
   
   const getMedias = async ({ year, event }: { year: string; event: string } = { year: '', event: '' }) => {
@@ -67,9 +68,7 @@ export const MediaMap = ({ accessToken, initialMedias }: { accessToken: string, 
     if (!event || !event.features) return;
     const feature = event.features[0] as MapGLGeoJSONFeature;
     
-    // close popup if click on empty space on the map
-    console.log(feature);
-    
+    // close popup if click on empty space on the map    
     if (feature === undefined) {
       setShowDetailsPopup(false);
       getMedias();
@@ -83,9 +82,14 @@ export const MediaMap = ({ accessToken, initialMedias }: { accessToken: string, 
       zoomInCluster(clusterId, feature);
     } else {
       // it's a photo
+      
       const mediaEvent = feature?.properties?.mediaEvent;    
       setShowDetailsPopup(true);
-      getMedias({ event: mediaEvent, year: '' });
+      const clickedMedia = medias.find((media) => media.images[0]?.id === feature?.properties?.mediaId)
+      if (clickedMedia) {
+        setSelectedMedia(clickedMedia);
+        getMedias({ event: mediaEvent, year: '' });
+      }
     }
   };
 
@@ -144,7 +148,7 @@ export const MediaMap = ({ accessToken, initialMedias }: { accessToken: string, 
 
   return (
     <>
-      <ImageDetailsPopup show={showDetailsPopup} medias={medias} />
+      <ImageDetailsPopup selectedMedia={selectedMedia} show={showDetailsPopup} medias={medias} />
       <RmglInteractiveMap
         initialViewState={{
           bounds: [minLng, minLat, maxLng, maxLat],
@@ -158,7 +162,7 @@ export const MediaMap = ({ accessToken, initialMedias }: { accessToken: string, 
           },
         }}
         mapStyle={'mapbox://styles/mapbox/streets-v9'}
-        style={{ width: '100vw', height: '600px' }}
+        style={{ width: '100vw', height: 'inherit', flexGrow: 1 }}
         mapboxAccessToken={accessToken}
         interactiveLayerIds={[clusterLayer.id as string, unclusteredPointLayer.id as string]}
         onClick={onClick}
