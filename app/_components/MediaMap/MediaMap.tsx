@@ -11,22 +11,43 @@ import {
   unclusteredPointLayer,
 } from './layers';
 
-import { ImageDetailsPopup } from './ImageDetailsPopup';
+import { ImageDetailsPopup } from '../ImageDetailsPopup';
 import { MediaWithImages, MapGLGeoJSONFeature } from '@/app/types';
+import Supercluster, { PointFeature } from 'supercluster';
 
 export const MediaMap = ({ accessToken, initialMedias }: { accessToken: string, initialMedias: MediaWithImages[] }) => {
   
   const mapRef = useRef<MapRef>(null);
   const [medias, setMedias] = useState<MediaWithImages[]>(initialMedias);
-  const [selectedMedia, setSelectedMedia] = useState<MediaWithImages>(medias[0]);
+  const [selectedMedia, setSelectedMedia] = useState<MediaWithImages | null>(null);
   const [showDetailsPopup, setShowDetailsPopup] = useState(false);
+
+  // Super cluster used to dig into clusters
+  const clusterRadius = 50;
+  const clusterMaxZoom = 14;
+  const superCluster = new Supercluster({
+      radius: clusterRadius,
+      maxZoom: clusterMaxZoom
+    });
   
-  const getMedias = async ({ year, event }: { year: string; event: string } = { year: '', event: '' }) => {
+  useEffect(() => {
+      getMedias({ id: selectedMedia?.id });
+  }, [selectedMedia]);
+
+  const getMedias = async ({ year, event, id }: { year?: string; event?: string, id?: string }) => {
+    // if no filters, load initial medias
+    if(!year && !event && !id) {
+      setMedias(initialMedias); 
+      return;
+    }
+    // else, fetch filtered medias
     const res = await fetch(`/api/get-medias`, {
       method: 'POST',
-      body: JSON.stringify({ year, event }),
+      body: JSON.stringify({ year, event, id }),
     });
-    const medias =  await res.json()
+    const medias = await res.json()
+    console.log("New medias fetched:", medias.length);
+    
     setMedias(medias)
   };
 
@@ -45,11 +66,38 @@ export const MediaMap = ({ accessToken, initialMedias }: { accessToken: string, 
         },
       })),
   };
+
+  // Load medias geo data to supercluster
+  superCluster.load(geojson.features as PointFeature<GeoJSONSource>[]);
+
+
   const [minLng, minLat, maxLng, maxLat] = bbox(geojson);
 
   const zoomInCluster = (clusterId: number, feature: MapGLGeoJSONFeature) => {
-    if (mapRef.current === null) return;
-    const mapboxSource = mapRef.current.getSource('medias') as GeoJSONSource;
+    const map = mapRef.current;
+    if (map === null) return;
+    const mapboxSource = map.getSource('medias') as GeoJSONSource;
+
+    const clusterChildren = superCluster.getLeaves(clusterId, Infinity);
+    // only preload images when clicking on cluster of more than 100 images
+    if (clusterChildren.length < 100) {
+      clusterChildren.forEach((clusterChild) => {
+        const imageId = clusterChild.properties.mediaId;
+        if (map.hasImage(imageId)) return;
+        const media = medias.find((media) => media.images[0]?.id === imageId);
+        
+        if (!media) return;
+        let img = new Image();
+        img.crossOrigin = 'Anonymous'; //it's not cross origin, but this quiets the canvas error
+        img.src = media?.images[0].clPath as string;
+        
+        img.onload = () => {
+          // map.removeImage(imageId as string);
+          map.addImage(imageId as string, img);
+        };
+      })
+    }
+    
 
     mapboxSource.getClusterExpansionZoom(clusterId, (err, zoom) => {
       if (err || mapRef.current === null) {
@@ -64,91 +112,72 @@ export const MediaMap = ({ accessToken, initialMedias }: { accessToken: string, 
     });
   };
 
-  const onClick = (event: MapMouseEvent) => {
+  const onMapClick = (event: MapMouseEvent) => {
     if (!event || !event.features) return;
     const feature = event.features[0] as MapGLGeoJSONFeature;
     
     // close popup if click on empty space on the map    
     if (feature === undefined) {
       setShowDetailsPopup(false);
-      getMedias();
+      setSelectedMedia(null);
       return;
     }
     
     const clusterId = feature?.properties?.cluster_id;    
 
     if (clusterId !== undefined) {
-      // it's a cluster
+      // it's a cluster, zoom in
       zoomInCluster(clusterId, feature);
     } else {
-      // it's a photo
-      
-      const mediaEvent = feature?.properties?.mediaEvent;    
+      // it's a photo, show popup
       setShowDetailsPopup(true);
       const clickedMedia = medias.find((media) => media.images[0]?.id === feature?.properties?.mediaId)
       if (clickedMedia) {
         setSelectedMedia(clickedMedia);
-        getMedias({ event: mediaEvent, year: '' });
+        console.log({selectedMedia});
       }
     }
   };
 
-  const mapRefCallback = useCallback(
-    (ref: MapRef | null) => {
-      if (ref !== null) {
-        //Set the actual ref we use elsewhere
-        mapRef.current = ref;
-        const map = ref;
+  // const mapRefCallback = useCallback(    
+  //   (ref: MapRef | null) => {
+  //     if (ref !== null) {
+  //       //Set the actual ref we use elsewhere
+  //       mapRef.current = ref;
+  //       const map = ref;
 
-        const loadImages = () => {
-          medias.forEach((media) => {
-            if (media.images.length === 0) return;
-            const image = media.images[0];
+  //       const loadImages = () => {
+  //         console.log("Loading images:", medias.length);
+  //         medias.forEach((media) => {
+  //           if (media.images.length === 0) return;
+  //           const image = media.images[0];
 
-            if (!map.hasImage(image.id)) {
-              //NOTE This is really how are you load an SVG for mapbox
-              let img = new Image();
-              img.crossOrigin = 'Anonymous'; //it's not cross origin, but this quiets the canvas error
-              img.onload = () => {
-                map.addImage(image.id, img, { sdf: false });
-              };
-              img.src = image.clPath;
-            }
-          });
-        };
-
-        const loadImage = (id: string) => {
-          const media = medias.find((media) => media.images[0].id === id);
-          if (!media || media?.images?.length === 0) return;
-          const image = media.images[0];
-
-          if (!map.hasImage(image.id)) {
-            //NOTE This is really how are you load an SVG for mapbox
-            let img = new Image();
-            img.crossOrigin = 'Anonymous'; //it's not cross origin, but this quiets the canvas error
-            img.onload = () => {
-              map.addImage(image.id, img, { sdf: false });
-            };
-            img.src = image.clPath;
-          }
-        };
-
-        loadImages();
-
-        //TODO need this?
-        map.on('styleimagemissing', (e) => {
-          const id = e.id; // id of the missing image
-          console.log(id);
-          loadImage(id);
-        });
-      }
-    },
-    [medias],
-  );
+  //           if (!map.hasImage(image.id)) {
+  //             //NOTE This is really how are you load an SVG for mapbox
+  //             let img = new Image();
+  //             img.crossOrigin = 'Anonymous'; //it's not cross origin, but this quiets the canvas error
+  //             img.onload = () => {
+  //               map.addImage(image.id, img, { sdf: false });
+  //             };
+  //             if (initialMedias.length === medias.length) {
+  //               img.src = '/tube-spinner.svg' //image.clPath
+  //             } else {
+  //               img.src = image.clPath
+  //             }
+  //           }
+  //         });
+  //       };
+  //       // loadImages();
+  //     }
+  //   },
+  //   [],
+  // );
 
   return (
     <>
-      <ImageDetailsPopup selectedMedia={selectedMedia} show={showDetailsPopup} medias={medias} />
+    { showDetailsPopup && (
+      <ImageDetailsPopup selectedMedia={selectedMedia} medias={medias} />
+    )}
       <RmglInteractiveMap
         initialViewState={{
           bounds: [minLng, minLat, maxLng, maxLat],
@@ -165,8 +194,8 @@ export const MediaMap = ({ accessToken, initialMedias }: { accessToken: string, 
         style={{ width: '100vw', height: 'inherit', flexGrow: 1 }}
         mapboxAccessToken={accessToken}
         interactiveLayerIds={[clusterLayer.id as string, unclusteredPointLayer.id as string]}
-        onClick={onClick}
-        ref={mapRefCallback}
+        onClick={onMapClick}
+        // ref={mapRefCallback}
       >
         <Source
           id="medias"
