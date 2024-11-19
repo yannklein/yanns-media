@@ -1,6 +1,6 @@
 import prisma from '@/lib/prisma';
 
-const getMedia = async (year: string = '', event: string = '')  => {
+const getMedia = async ({year, event} : {year?: string, event?: string})  => {
   try {
     const medias = await prisma.media.findMany({
       where: {
@@ -15,7 +15,7 @@ const getMedia = async (year: string = '', event: string = '')  => {
           lte: year ? new Date(`${year}-12-31`) : undefined,
         },
         event: {
-          contains: event,
+          contains: event ? event : undefined,
         },
       },
       include: {
