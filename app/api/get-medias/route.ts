@@ -1,30 +1,84 @@
+import { MediaWithImages } from '@/app/types';
 import prisma from '@/lib/prisma';
+import { Prisma } from '@prisma/client';
 import { NextRequest, NextResponse } from 'next/server';
 
+const getAssociatedMedias = async (id: number) => {
+  const query = Prisma.sql`
+      WITH reference_location AS (
+        SELECT 
+          ST_MakePoint(longitude, latitude)::geography AS location,
+          date_part('year', date) as year,
+          event
+        FROM "medias"
+        WHERE id = ${id}
+      )
+      SELECT *,
+            ST_Distance(
+              ST_MakePoint(longitude, latitude)::geography,
+              (SELECT location FROM reference_location)
+            ) AS distance,
+            COALESCE(
+              json_agg(
+                json_build_object(
+                  'id', "images".id,
+                  'publicId', "images"."publicId",
+                  'format', "images".format,
+                  'version', "images".version,
+                  'mediaId', "images"."mediaId",
+                  'clPath', CONCAT(
+                    'https://res.cloudinary.com/yanninthesky/image/upload/v',
+                    "images".version, '/',
+                    "images"."publicId", '.',
+                    "images".format
+                  )
+                )
+              ) FILTER (WHERE "images".id IS NOT NULL),
+              '[]'
+            ) AS images
+      FROM "medias"
+      JOIN "images" ON "medias"."id" = "images"."mediaId"
+      where true
+        and date_part('year', date) = (SELECT year FROM reference_location)
+        and event = (SELECT event FROM reference_location)
+      GROUP BY "medias"."id", "images"."id"
+      ORDER BY distance ASC
+      LIMIT 32
+      `;
+  return await prisma.$queryRaw<MediaWithImages[]>(query);
+};
+
 export async function POST(req: NextRequest) {
-  
   try {
-    const { year, event } = await req.json();    
+    const params = await req.json();
+    console.log({params});
+    
+
+    if (params.id) {
+      const medias = await getAssociatedMedias(params.id);
+      return NextResponse.json(medias);
+    }
+
     const medias = await prisma.media.findMany({
       where: {
         latitude: {
-          not: null
+          not: null,
         },
         longitude: {
-          not: null
+          not: null,
         },
         date: {
-          gte: year ? new Date(`${year}-01-01`) : undefined,
-          lte: year ? new Date(`${year}-12-31`) : undefined,
+          gte: params.year ? new Date(`${params.year}-01-01`) : undefined,
+          lte: params.year ? new Date(`${params.year}-12-31`) : undefined,
         },
         event: {
-          contains: event,
+          contains: params.event ? params.event : undefined,
         },
       },
       include: {
-        images: true
+        images: true,
       },
-    });  
+    });
 
     return NextResponse.json(medias);
   } catch (error) {
@@ -35,4 +89,3 @@ export async function POST(req: NextRequest) {
     );
   }
 }
-
