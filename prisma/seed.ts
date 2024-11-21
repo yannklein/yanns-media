@@ -1,7 +1,8 @@
-import { uploadImage } from '../utils/cloudinary';
+import { uploadImage } from '../utils/storeOnCloudinary';
 import { getImageBinary } from '../utils/getImageBinary';
 import { PrismaClient } from '@prisma/client';
 import fs from 'fs';
+import { storeLocally } from '../utils/storeLocally';
 
 const prisma = new PrismaClient();
 
@@ -38,8 +39,8 @@ type ImageDTO = {
 let foundMedia = 0;
 let foundEvent = 0;
 let createdMedia = 0;
-let skippedMedia = {eventMissing: 0, coordsMissing: 0};
-let seedStart = new Date();
+const skippedMedia = { eventMissing: 0, coordsMissing: 0 };
+const seedStart = new Date();
 
 const logger = (message: string) => {
   fs.appendFileSync('./prisma/seed.log', `${message}\n`);
@@ -49,6 +50,13 @@ const logger = (message: string) => {
 async function resetDb() {
   await prisma.image.deleteMany({});
   await prisma.media.deleteMany({});
+
+  // remove all images files from the public/mediasThumbnails folder
+  if (process.env.STORAGE_SERVICE === 'local') {
+    fs.readdirSync('./public/mediasThumbnails').forEach((file) => {
+      fs.unlinkSync(`./public/mediasThumbnails/${file}`);
+    });
+  }
 }
 
 async function getResource(
@@ -74,7 +82,9 @@ async function getResource(
     const response = await fetch(endpoint, requestOptions);
     const data = await response.json();
     if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}, reason: ${data.error_summary}, endpoint: ${endpoint}`);
+      throw new Error(
+        `HTTP error! status: ${response.status}, reason: ${data.error_summary}, endpoint: ${endpoint}`,
+      );
     }
     return data;
   } catch (error) {
@@ -84,7 +94,7 @@ async function getResource(
 }
 
 async function getFinalResource(path: string): Promise<DataEntry[]> {
-  try {    
+  try {
     const firstData = await getResource(path, true);
     if (!firstData.has_more) {
       return firstData.entries.filter((entry) => entry['.tag'] === 'file');
@@ -106,14 +116,16 @@ async function getFinalResource(path: string): Promise<DataEntry[]> {
 
     const endpoint = 'https://api.dropboxapi.com/2/files/list_folder/continue';
     const response = await fetch(endpoint, requestOptions);
-    
+
     const secondData: {
       entries: DataEntry[];
       has_more: boolean;
       cursor?: string;
     } = await response.json();
     if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}, endpoint: ${endpoint}`);
+      throw new Error(
+        `HTTP error! status: ${response.status}, endpoint: ${endpoint}`,
+      );
     }
 
     return [
@@ -145,7 +157,9 @@ async function getMetatag(path: string): Promise<any> {
   const response = await fetch(endpoint, requestOptions);
   const data = await response.json();
   if (!response.ok) {
-    throw new Error(`HTTP error! status: ${response.status}, reason: ${data.error_summary}, endpoint: ${endpoint}`);
+    throw new Error(
+      `HTTP error! status: ${response.status}, reason: ${data.error_summary}, endpoint: ${endpoint}`,
+    );
   }
   return data;
 }
@@ -162,12 +176,12 @@ const createMedia = async (file: DataEntry, event: DataEntry) => {
   // Get image metatag, and only create Media for the one including coords
   const metatag = await getMetatag(file.path_display);
   if (!event.name || !metatag.path_display) {
-    logger("    Missing event or path, skipping...");
+    logger('    Missing event or path, skipping...');
     skippedMedia.eventMissing += 1;
     return;
   }
   if (metatag?.media_info?.metadata?.location?.latitude === undefined) {
-    logger("    No coords, skipping...");
+    logger('    No coords, skipping...');
     skippedMedia.coordsMissing += 1;
     return;
   }
@@ -188,8 +202,16 @@ const createMedia = async (file: DataEntry, event: DataEntry) => {
   const imageBinary = await getImageBinary(media.path);
   logger(`    Got it!`);
 
-  logger(`    Uploading image ${media.path} to Cloudinary...`);
-  const imageData = await uploadImage(imageBinary);
+  let imageData;
+  if (process.env.STORAGE_SERVICE === 'cloudinary') {
+    logger(`    Uploading image ${media.path} to Cloudinary...`);
+    imageData = await uploadImage(imageBinary);
+  } else if (process.env.STORAGE_SERVICE === 'local') {
+    logger(`    Uploading image ${media.path} locally...`);
+    imageData = storeLocally(imageBinary);
+  } else {
+    throw new Error('Unknown storage service');
+  }
   logger(`    Uploaded!`);
 
   logger(`    Storing image (public id: ${imageData.public_id} in DB)...`);
@@ -208,24 +230,26 @@ async function main() {
 ###################################
 Seeding started! (${seedStart})  
 ###################################
-  `)
+  `);
 
   logger('Clearing up DB...');
   await resetDb();
   logger('Cleared up!');
 
-  for (let year of ['2023']) {
+  for (const year of ['2023']) {
     // Get every event per year
     const events = await getResource(`/Photos/${year}`);
-    logger(events.entries.length  + ` events found for ${year}`);
-    
-    for (let [evIndex, event] of (events.entries ?? []).entries()) {
+    logger(events.entries.length + ` events found for ${year}`);
+
+    for (const [evIndex, event] of Array.from(
+      (events.entries ?? []).entries(),
+    ).slice(0, 1)) {
       foundEvent += 1;
       // Get every media per event
       logger(`Event n${evIndex + 1}: ${event.path_display}`);
       const files = await getFinalResource(event.path_display);
-      
-      for (let [index, file] of files.entries()) {
+
+      for (const [index, file] of files.entries()) {
         foundMedia += 1;
         logger(`  File n${index + 1}: Creating Media for ${file.name}...`);
         await createMedia(file, event);
@@ -250,7 +274,6 @@ Skipped ${skippedMedia.coordsMissing} medias because of missing coords.
 Seeding duration: ${hours} hours ${minutes} minutes ${seconds} seconds
 ###################################
     `);
-  
 }
 main()
   .then(async () => {

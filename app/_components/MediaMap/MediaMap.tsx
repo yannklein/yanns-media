@@ -139,39 +139,39 @@ export const MediaMap = ({ accessToken, initialMedias }: { accessToken: string, 
     }
   };
 
-  // const mapRefCallback = useCallback(    
-  //   (ref: MapRef | null) => {
-  //     if (ref !== null) {
-  //       //Set the actual ref we use elsewhere
-  //       mapRef.current = ref;
-  //       const map = ref;
+  const mapRefCallback = useCallback(    
+    (ref: MapRef | null) => {
+      if (ref !== null) {
+        //Set the actual ref we use elsewhere
+        mapRef.current = ref;
+        const map = ref;
 
-  //       const loadImages = () => {
-  //         console.log("Loading images:", medias.length);
-  //         medias.forEach((media) => {
-  //           if (media.images.length === 0) return;
-  //           const image = media.images[0];
+        const loadImages = () => {
+          console.log("Loading images:", medias.length);
+          medias.forEach((media) => {
+            if (media.images.length === 0) return;
+            const image = media.images[0];
 
-  //           if (!map.hasImage(image.id)) {
-  //             //NOTE This is really how are you load an SVG for mapbox
-  //             let img = new Image();
-  //             img.crossOrigin = 'Anonymous'; //it's not cross origin, but this quiets the canvas error
-  //             img.onload = () => {
-  //               map.addImage(image.id, img, { sdf: false });
-  //             };
-  //             if (initialMedias.length === medias.length) {
-  //               img.src = '/tube-spinner.svg' //image.clPath
-  //             } else {
-  //               img.src = image.clPath
-  //             }
-  //           }
-  //         });
-  //       };
-  //       // loadImages();
-  //     }
-  //   },
-  //   [],
-  // );
+            if (!map.hasImage(image.id)) {
+              //NOTE This is really how are you load an SVG for mapbox
+              let img = new Image();
+              img.crossOrigin = 'Anonymous'; //it's not cross origin, but this quiets the canvas error
+              img.onload = () => {
+                map.addImage(image.id, img, { sdf: false });
+              };
+              if (initialMedias.length === medias.length) {
+                img.src = '/tube-spinner.svg' //image.clPath
+              } else {
+                img.src = image.clPath
+              }
+            }
+          });
+        };
+        // loadImages();
+      }
+    },
+    [],
+  );
 
   return (
     <>
@@ -195,7 +195,7 @@ export const MediaMap = ({ accessToken, initialMedias }: { accessToken: string, 
         mapboxAccessToken={accessToken}
         interactiveLayerIds={[clusterLayer.id as string, unclusteredPointLayer.id as string]}
         onClick={onMapClick}
-        // ref={mapRefCallback}
+        ref={mapRefCallback}
       >
         <Source
           id="medias"

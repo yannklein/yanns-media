@@ -2,7 +2,6 @@
 import { MediaWithImages } from '@/app/types';
 
 export const ImageDetailsPopup = ({
-  show = false,
   selectedMedia,
   medias,
 }: {
