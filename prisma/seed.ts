@@ -226,28 +226,30 @@ const createMedia = async (file: DataEntry, event: DataEntry) => {
 };
 
 async function main() {
+
   logger(`
 ###################################
 Seeding started! (${seedStart})  
 ###################################
   `);
 
-  logger('Clearing up DB...');
-  await resetDb();
-  logger('Cleared up!');
+  if (process.env.SEED_RESET === 'true') {
+    logger('Clearing up DB...'); 
+    await resetDb();
+    logger('Cleared up!');
+  }
 
-  for (const year of ['2023']) {
+  for (const year of ['2022']) {
     // Get every event per year
     const events = await getResource(`/Photos/${year}`);
     logger(events.entries.length + ` events found for ${year}`);
 
-    for (const [evIndex, event] of Array.from(
-      (events.entries ?? []).entries(),
-    ).slice(0, 1)) {
+    for (const [evIndex, event] of (events.entries ?? []).entries()) {
       foundEvent += 1;
       // Get every media per event
       logger(`Event n${evIndex + 1}: ${event.path_display}`);
       const files = await getFinalResource(event.path_display);
+      logger(Array.from(files.entries()).length + ` files found for ${event.path_display}`);
 
       for (const [index, file] of files.entries()) {
         foundMedia += 1;
