@@ -21,7 +21,7 @@ const prismaExtended = prisma.$extends({
         needs: { version: true, publicId: true, format: true },
         compute(image) {
           if (process.env.STORAGE_SERVICE === 'local') {
-            return "/" + encodeURIComponent(image.publicId);
+            return encodeURIComponent(image.publicId);
           } else if (process.env.STORAGE_SERVICE === 'cloudinary') {
             return `https://res.cloudinary.com/yanninthesky/image/upload/v${image.version}/${image.publicId}.${image.format}`;
           } else {

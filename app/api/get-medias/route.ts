@@ -4,6 +4,20 @@ import { Prisma } from '@prisma/client';
 import { NextRequest, NextResponse } from 'next/server';
 
 const getAssociatedMedias = async (id: number) => {
+  let imagePath;
+  if (process.env.STORAGE_SERVICE === 'local') {
+    imagePath = Prisma.sql`"images"."publicId"`;
+  } else if (process.env.STORAGE_SERVICE === 'cloudinary') {
+    imagePath = Prisma.sql`
+      CONCAT(
+        'https://res.cloudinary.com/yanninthesky/image/upload/v',
+        "images".version, '/',
+        "images"."publicId", '.',
+        "images".format
+      )`;
+  } else {
+    throw new Error('Unknown storage service');
+  }
   const query = Prisma.sql`
       WITH reference_location AS (
         SELECT 
@@ -26,12 +40,7 @@ const getAssociatedMedias = async (id: number) => {
                   'format', "images".format,
                   'version', "images".version,
                   'mediaId', "images"."mediaId",
-                  'clPath', CONCAT(
-                    'https://res.cloudinary.com/yanninthesky/image/upload/v',
-                    "images".version, '/',
-                    "images"."publicId", '.',
-                    "images".format
-                  )
+                  'clPath', ${imagePath}
                 )
               ) FILTER (WHERE "images".id IS NOT NULL),
               '[]'
@@ -45,14 +54,14 @@ const getAssociatedMedias = async (id: number) => {
       ORDER BY distance ASC
       LIMIT 32
       `;
+  
   return await prisma.$queryRaw<MediaWithImages[]>(query);
 };
 
 export async function POST(req: NextRequest) {
   try {
     const params = await req.json();
-    console.log({params});
-    
+    console.log({ params });
 
     if (params.id) {
       const medias = await getAssociatedMedias(params.id);
