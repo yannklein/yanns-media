@@ -46,12 +46,13 @@ const removeSeed = async ({
       if (!mediaPath) {
         console.log('No image path found for ${media.path} ');
       } else {
-        fs.unlink("/public" + mediaPath, (err) => {
+        const path = `/Users/kleinyann/github/yanns-media/public${mediaPath}`;
+        fs.unlink(path, (err) => {
           if (err) {
-            console.log(`${mediaPath} was NOT deleted.`);
+            console.log(`${path} was NOT deleted.`);
             return;
           }
-          console.log(`${mediaPath} was deleted.`);
+          console.log(`${path} was deleted.`);
         });
       }
 
