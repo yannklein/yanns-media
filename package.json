@@ -13,20 +13,24 @@
     "seed": "ts-node --compiler-options {\"module\":\"CommonJS\"} prisma/seed.ts"
   },
   "dependencies": {
+    "@enviro/metadata": "^1.5.1",
     "@prisma/client": "^5.22.0",
     "@turf/bbox": "^7.1.0",
     "cloudinary": "^2.5.1",
+    "exifr": "^6.0.0",
     "mapbox-gl": "^3.7.0",
     "next": "15.0.3",
     "react": "19.0.0-rc-66855b96-20241106",
     "react-dom": "19.0.0-rc-66855b96-20241106",
     "react-map-gl": "^7.1.7",
+    "resize-img": "^2.0.0",
     "streamifier": "^0.1.1"
   },
   "devDependencies": {
     "@types/node": "^20.17.6",
     "@types/react": "^18",
     "@types/react-dom": "^18",
+    "@types/resize-img": "^2.0.3",
     "@types/streamifier": "^0.1.2",
     "eslint": "^8",
     "eslint-config-next": "15.0.3",
