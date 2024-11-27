@@ -42,7 +42,13 @@ type ImageDTO = {
 let foundMedia = 0;
 let foundEvent = 0;
 let createdMedia = 0;
-const skippedMedia = { wrongExtention: 0, eventMissing: 0, coordsMissing: 0, noImageData: 0 };
+const skippedMedia = {
+  wrongExtention: 0,
+  eventMissing: 0,
+  coordsMissing: 0,
+  noImageData: 0,
+  noMetatag: 0,
+};
 const seedStart = new Date();
 
 const logger = (message: string) => {
@@ -62,10 +68,10 @@ async function resetDb() {
   }
 }
 
-async function getResource(
+const getDropboxResource = async (
   path: string,
   recursive?: boolean,
-): Promise<{ entries: DataEntry[]; has_more: boolean; cursor?: string }> {
+): Promise<{ entries: DataEntry[]; has_more: boolean; cursor?: string }> => {
   try {
     const raw = JSON.stringify({
       path: path,
@@ -94,11 +100,11 @@ async function getResource(
     console.error(error);
     return { entries: [], has_more: false };
   }
-}
+};
 
-async function getFinalResource(path: string): Promise<DataEntry[]> {
+const getDropboxFinalResource = async (path: string): Promise<DataEntry[]> => {
   try {
-    const firstData = await getResource(path, true);
+    const firstData = await getDropboxResource(path, true);
     if (!firstData.has_more) {
       return firstData.entries.filter((entry) => entry['.tag'] === 'file');
     }
@@ -141,7 +147,7 @@ async function getFinalResource(path: string): Promise<DataEntry[]> {
   }
 }
 
-async function getMetatag(path: string): Promise<any> {
+const getDropboxMetatag = async (path: string): Promise<any> => {
   const raw = JSON.stringify({
     path: path,
     include_media_info: true,
@@ -176,6 +182,73 @@ const getLocalMetatag = async (path: string) => {
     if (output.Orientation.includes('90')) {
       landcscape = false;
     }
+
+    // output =
+    // {
+    //   Make: 'Apple',
+    //   Model: 'iPhone X',
+    //   Orientation: 'Rotate 90 CW',
+    //   XResolution: 72,
+    //   YResolution: 72,
+    //   ResolutionUnit: 'inches',
+    //   Software: '15.2.1',
+    //   ModifyDate: 2022-02-28T00:43:50.000Z,
+    //   HostComputer: 'iPhone X',
+    //   YCbCrPositioning: 1,
+    //   ExposureTime: 0.002570694087403599,
+    //   FNumber: 1.8,
+    //   ExposureProgram: 'Normal program',
+    //   ISO: 20,
+    //   ExifVersion: '2.3.2',
+    //   DateTimeOriginal: 2022-02-28T00:43:50.000Z,
+    //   CreateDate: 2022-02-28T00:43:50.000Z,
+    //   OffsetTime: '+09:00',
+    //   OffsetTimeOriginal: '+09:00',
+    //   OffsetTimeDigitized: '+09:00',
+    //   ComponentsConfiguration: Uint8Array(4) [ 1, 2, 3, 0 ],
+    //   ShutterSpeedValue: 8.601772231543624,
+    //   ApertureValue: 1.6959938128383605,
+    //   BrightnessValue: 7.57268397397196,
+    //   ExposureCompensation: 0,
+    //   MeteringMode: 'Pattern',
+    //   Flash: 'Flash did not fire, compulsory flash mode',
+    //   FocalLength: 4,
+    //   SubjectArea: Uint16Array(4) [ 2015, 1511, 2217, 1330 ],
+    //   SubSecTimeOriginal: '026',
+    //   SubSecTimeDigitized: '026',
+    //   FlashpixVersion: '1.0',
+    //   ColorSpace: 65535,
+    //   ExifImageWidth: 4032,
+    //   ExifImageHeight: 3024,
+    //   SensingMethod: 'One-chip color area sensor',
+    //   SceneType: 'Directly photographed',
+    //   CustomRendered: 'HDR (no original saved)',
+    //   ExposureMode: 'Auto',
+    //   WhiteBalance: 'Auto',
+    //   FocalLengthIn35mmFormat: 28,
+    //   SceneCaptureType: 'Standard',
+    //   LensInfo: [ 4, 6, 1.8, 2.4 ],
+    //   LensMake: 'Apple',
+    //   LensModel: 'iPhone X back dual camera 4mm f/1.8',
+    //   GPSLatitudeRef: 'N',
+    //   GPSLatitude: [ 35, 6, 10.66 ],
+    //   GPSLongitudeRef: 'E',
+    //   GPSLongitude: [ 139, 4, 39.44 ],
+    //   GPSAltitudeRef: Uint8Array(1) [ 0 ],
+    //   GPSAltitude: 76.98997874278773,
+    //   GPSTimeStamp: '20:0:0',
+    //   GPSSpeedRef: 'K',
+    //   GPSSpeed: 0,
+    //   GPSImgDirectionRef: 'T',
+    //   GPSImgDirection: 223.38237011091653,
+    //   GPSDestBearingRef: 'True North',
+    //   GPSDestBearing: 223.38237011091653,
+    //   GPSDateStamp: '2022:02:28',
+    //   GPSHPositioningError: 35,
+    //   latitude: 35.102961111111114,
+    //   longitude: 139.07762222222223
+    // }
+
     return {
       id: path,
       media_info: {
@@ -187,22 +260,22 @@ const getLocalMetatag = async (path: string) => {
             latitude: coordsConverter(output.GPSLatitude),
             longitude: coordsConverter(output.GPSLongitude),
           },
-          time_taken: new Date(output.DateTimeOriginal),
+          time_taken: new Date(output.DateTimeOriginal || output.CreateDate),
         },
       },
       path_display: path,
     };
   } catch (error) {
     console.log('No metadata for that file... ', error);
-    return {};
+    return null;
   }
 };
 
-async function storeMedia(media: MediaDTO) {
+const storeMedia = async (media: MediaDTO) => {
   return await prisma.media.create({ data: media });
 }
 
-async function storeImage(image: ImageDTO) {
+const storeImage = async(image: ImageDTO) => {
   return await prisma.image.create({ data: image });
 }
 
@@ -227,7 +300,12 @@ const getLocalImageBinary = async (mediaPath: string, mediaInfo: any) => {
 };
 
 const createMedia = async (filePath: string, eventName: string) => {
-  // Get image metatag, and only create Media for the one including coords
+  if (!eventName) {
+    logger('    Missing event, skipping...');
+    skippedMedia.eventMissing += 1;
+    return;
+  }
+
   const extention = filePath.split('.').pop() ?? '';
   if (
     !['jpg', 'jpeg', 'png', 'webp', 'gif', 'svg', 'bmp'].includes(extention)
@@ -238,52 +316,45 @@ const createMedia = async (filePath: string, eventName: string) => {
   }
 
   let metatag;
-  if (process.env.SOURCE_SERVICE === 'dropbox') {
-    metatag = await getMetatag(filePath);
-  } else if (process.env.SOURCE_SERVICE === 'local') {
-    metatag = await getLocalMetatag(filePath);
+  switch (process.env.SOURCE_SERVICE) {
+    case 'dropbox':
+      metatag = await getDropboxMetatag(filePath);
+      break;
+    case 'local':
+      metatag = await getLocalMetatag(filePath);
+      break;
+    default:
+      break;
   }
-  // console.log(metatag);
-
-  if (!eventName || !metatag.path_display) {
-    logger('    Missing event or path, skipping...');
-    skippedMedia.eventMissing += 1;
+  if (!metatag || !metatag.path_display) {
+    logger('    No metatag, skipping...');
+    skippedMedia.noMetatag += 1;
     return;
   }
+
+
   if (metatag?.media_info?.metadata?.location?.latitude === undefined) {
     logger('    No coords, skipping...');
     skippedMedia.coordsMissing += 1;
     return;
   }
-  const formattedEvent = eventName.match(/[a-zA-Z].*/)?.[0] ?? 'Unkown event';
-
-  logger(`    Storing media ${metatag.path_display} in DB)...`);
-  const media = await storeMedia({
-    dropbox_id: metatag.id,
-    path: metatag.path_display,
-    date: metatag?.media_info?.metadata?.time_taken,
-    latitude: metatag?.media_info?.metadata?.location?.latitude,
-    longitude: metatag?.media_info?.metadata?.location?.longitude,
-    event: formattedEvent,
-  });
-  logger(`    Stored!`);
 
   let imageBinary;
   if (process.env.SOURCE_SERVICE === 'dropbox') {
-    logger(`    Getting image ${media.path} from Dropbox...`);
-    imageBinary = await getImageBinary(media.path);
+    logger(`    Getting image ${metatag.path_display} from Dropbox...`);
+    imageBinary = await getImageBinary(metatag.path_display);
   } else if (process.env.SOURCE_SERVICE === 'local') {
-    logger(`    Getting image ${media.path} from local...`);
-    imageBinary = await getLocalImageBinary(media.path, metatag.media_info);
+    logger(`    Getting image ${metatag.path_display} from local...`);
+    imageBinary = await getLocalImageBinary(metatag.path_display, metatag.media_info);
   }
   logger(`    Got it!`);
 
   let imageData = null;
   if (process.env.STORAGE_SERVICE === 'cloudinary') {
-    logger(`    Uploading image ${media.path} to Cloudinary...`);
+    logger(`    Uploading image ${metatag.path_display} to Cloudinary...`);
     imageData = await uploadImage(imageBinary);
   } else if (process.env.STORAGE_SERVICE === 'local') {
-    logger(`    Uploading image ${media.path} locally...`);
+    logger(`    Uploading image ${metatag.path_display} locally...`);
     imageData = storeLocally(imageBinary);
   } else {
     throw new Error('Unknown storage service');
@@ -294,6 +365,18 @@ const createMedia = async (filePath: string, eventName: string) => {
     return;
   }
   logger(`    Uploaded!`);
+
+  logger(`    Storing media ${metatag.path_display} in DB)...`);
+  const formattedEvent = eventName.match(/[a-zA-Z].*/)?.[0] ?? 'Unkown event';
+  const media = await storeMedia({
+    dropbox_id: metatag.id,
+    path: metatag.path_display,
+    date: metatag?.media_info?.metadata?.time_taken,
+    latitude: metatag?.media_info?.metadata?.location?.latitude,
+    longitude: metatag?.media_info?.metadata?.location?.longitude,
+    event: formattedEvent,
+  });
+  logger(`    Stored!`);
 
   logger(`    Storing image (public id: ${imageData.public_id} in DB)...`);
   await storeImage({
@@ -308,14 +391,14 @@ const createMedia = async (filePath: string, eventName: string) => {
 
 const getSeedsFromDropbox = async (year: string) => {
   // Get every event per year
-  const events = await getResource(`/Photos/${year}`);
+  const events = await getDropboxResource(`/Photos/${year}`);
   logger(events.entries.length + ` events found for ${year}`);
 
   for (const [evIndex, event] of (events.entries ?? []).entries()) {
     foundEvent += 1;
     // Get every media per event
     logger(`Event n${evIndex + 1}: ${event.path_display}`);
-    const files = await getFinalResource(event.path_display);
+    const files = await getDropboxFinalResource(event.path_display);
     logger(
       Array.from(files.entries()).length +
         ` files found for ${event.path_display}`,
@@ -366,7 +449,7 @@ const getSeedsFromLocal = async (year: string) => {
   }
 };
 
-async function main() {
+const main =  async () => {
   logger(`
 ###################################
 Seeding started! (${seedStart})  
@@ -403,11 +486,13 @@ Skipped ${skippedMedia.wrongExtention} medias because not valid image.
 Skipped ${skippedMedia.eventMissing} medias because of missing event.
 Skipped ${skippedMedia.coordsMissing} medias because of missing coords.
 Skipped ${skippedMedia.noImageData} medias because of missing image data.
+Skipped ${skippedMedia.noMetatag} medias because of missing metatag.
 
 Seeding duration: ${hours} hours ${minutes} minutes ${seconds} seconds
 ###################################
     `);
 }
+
 main()
   .then(async () => {
     await prisma.$disconnect();
