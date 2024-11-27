@@ -13,11 +13,11 @@ const uploadImage = (imageUploaded: any): Promise<UploadApiResponse> => {
       {
         folder: 'yanns-media',
       },
-      (error, result) => {
+      (_, result) => {
         if (result) {
           resolve(result);
         } else {
-          reject(error);
+          reject(null);
         }
       },
     );

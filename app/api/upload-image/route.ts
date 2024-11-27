@@ -19,6 +19,9 @@ export async function POST(req: NextRequest) {
     } else {
       throw new Error('Unknown storage service');
     }
+    if (!imageData) {
+      throw new Error('Could not upload image');
+    }
 
     const result = await prisma.image.create({
       data: {

@@ -5,7 +5,7 @@ import fs from 'fs';
 import { readdir } from 'fs/promises';
 import { storeLocally } from '../utils/storeLocally';
 import exifr from 'exifr';
-import resizeImg  from 'resize-img';
+import resizeImg from 'resize-img';
 
 const prisma = new PrismaClient();
 
@@ -42,7 +42,7 @@ type ImageDTO = {
 let foundMedia = 0;
 let foundEvent = 0;
 let createdMedia = 0;
-const skippedMedia = { eventMissing: 0, coordsMissing: 0 };
+const skippedMedia = { wrongExtention: 0, eventMissing: 0, coordsMissing: 0, noImageData: 0 };
 const seedStart = new Date();
 
 const logger = (message: string) => {
@@ -169,10 +169,11 @@ async function getMetatag(path: string): Promise<any> {
 
 const getLocalMetatag = async (path: string) => {
   try {
-    const output = await exifr.parse(path);    
-    const coordsConverter = (coords: number[]) => coords[0] + (coords[1] / 60) + (coords[2] / 3600);
+    const output = await exifr.parse(path);
+    const coordsConverter = (coords: number[]) =>
+      coords[0] + coords[1] / 60 + coords[2] / 3600;
     let landcscape = true;
-    if (output.Orientation.includes("90")) {
+    if (output.Orientation.includes('90')) {
       landcscape = false;
     }
     return {
@@ -190,10 +191,9 @@ const getLocalMetatag = async (path: string) => {
         },
       },
       path_display: path,
-    }
-  }
-  catch (error) {
-    console.log("No metadata for that file... ", error);
+    };
+  } catch (error) {
+    console.log('No metadata for that file... ', error);
     return {};
   }
 };
@@ -208,16 +208,17 @@ async function storeImage(image: ImageDTO) {
 
 const getLocalImageBinary = async (mediaPath: string, mediaInfo: any) => {
   try {
-    if (!mediaInfo.width || !mediaInfo.height)  throw new Error(`No width or height for ${mediaPath}`);
-    
+    if (!mediaInfo.width || !mediaInfo.height)
+      throw new Error(`No width or height for ${mediaPath}`);
+
     const imageBuffer = fs.readFileSync(mediaPath);
     const largerDimension = Math.max(mediaInfo.width, mediaInfo.height);
     const ratio = largerDimension / 256;
     const resizedBuffer = await resizeImg(imageBuffer, {
       width: mediaInfo.width / ratio,
-      height: mediaInfo.height / ratio
-  });
-  
+      height: mediaInfo.height / ratio,
+    });
+
     return resizedBuffer;
   } catch (error) {
     console.error(error);
@@ -227,6 +228,15 @@ const getLocalImageBinary = async (mediaPath: string, mediaInfo: any) => {
 
 const createMedia = async (filePath: string, eventName: string) => {
   // Get image metatag, and only create Media for the one including coords
+  const extention = filePath.split('.').pop() ?? '';
+  if (
+    !['jpg', 'jpeg', 'png', 'webp', 'gif', 'svg', 'bmp'].includes(extention)
+  ) {
+    logger('    Not a valid image, skipping...');
+    skippedMedia.wrongExtention += 1;
+    return;
+  }
+
   let metatag;
   if (process.env.SOURCE_SERVICE === 'dropbox') {
     metatag = await getMetatag(filePath);
@@ -234,7 +244,7 @@ const createMedia = async (filePath: string, eventName: string) => {
     metatag = await getLocalMetatag(filePath);
   }
   // console.log(metatag);
-  
+
   if (!eventName || !metatag.path_display) {
     logger('    Missing event or path, skipping...');
     skippedMedia.eventMissing += 1;
@@ -268,7 +278,7 @@ const createMedia = async (filePath: string, eventName: string) => {
   }
   logger(`    Got it!`);
 
-  let imageData;
+  let imageData = null;
   if (process.env.STORAGE_SERVICE === 'cloudinary') {
     logger(`    Uploading image ${media.path} to Cloudinary...`);
     imageData = await uploadImage(imageBinary);
@@ -277,6 +287,11 @@ const createMedia = async (filePath: string, eventName: string) => {
     imageData = storeLocally(imageBinary);
   } else {
     throw new Error('Unknown storage service');
+  }
+  if (imageData === null) {
+    logger('    No image data, skipping...');
+    skippedMedia.noImageData += 1;
+    return;
   }
   logger(`    Uploaded!`);
 
@@ -384,8 +399,10 @@ Found ${foundMedia} medias.
 Found ${foundEvent} events.
 
 Created ${createdMedia} medias.
+Skipped ${skippedMedia.wrongExtention} medias because not valid image.
 Skipped ${skippedMedia.eventMissing} medias because of missing event.
 Skipped ${skippedMedia.coordsMissing} medias because of missing coords.
+Skipped ${skippedMedia.noImageData} medias because of missing image data.
 
 Seeding duration: ${hours} hours ${minutes} minutes ${seconds} seconds
 ###################################
