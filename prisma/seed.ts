@@ -260,7 +260,7 @@ const getLocalMetatag = async (path: string) => {
             latitude: coordsConverter(output.GPSLatitude),
             longitude: coordsConverter(output.GPSLongitude),
           },
-          time_taken: new Date(output.DateTimeOriginal || output.CreateDate),
+          time_taken: new Date(output.DateTimeOriginal || output.CreateDate || new Date()),
         },
       },
       path_display: path,
@@ -286,7 +286,7 @@ const getLocalImageBinary = async (mediaPath: string, mediaInfo: any) => {
 
     const imageBuffer = fs.readFileSync(mediaPath);
     const largerDimension = Math.max(mediaInfo.width, mediaInfo.height);
-    const ratio = largerDimension / 256;
+    const ratio = largerDimension / 512;
     const resizedBuffer = await resizeImg(imageBuffer, {
       width: mediaInfo.width / ratio,
       height: mediaInfo.height / ratio,
