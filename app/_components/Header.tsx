@@ -12,14 +12,14 @@ const Header: React.FC = () => {
   return (
     <nav>
       <div
-        className={`flex items-center justify-center md:justify-between drop-shadow-2xl bg-cream w-full py-3 px-5 font-heading gap-3`}
+        className={`bg-signature-gradient flex items-center justify-center md:justify-between drop-shadow-2xl w-full py-3 px-5 font-heading gap-3`}
       >
         <Link
           href="/"
           className={`flex lg:gap-3 items-center`}
           data-active={isActive('/')}
         >
-          <h1 className="ml-3 lg:ml-5 text-5xl font-bold text-gray-800 drop-shadow-sharp">
+          <h1 className="ml-3 lg:ml-5 text-5xl font-bold text-slate-100 drop-shadow-sharp">
             Yann's media
           </h1>
         </Link>
