@@ -14,6 +14,7 @@ import {
 import { ImageDetailsPopup } from '../ImageDetailsPopup';
 import { MediaWithImages, MapGLGeoJSONFeature } from '@/app/types';
 import Supercluster, { PointFeature } from 'supercluster';
+import MapFilter from './MapFilter';
 
 export const MediaMap = ({ accessToken, initialMedias }: { accessToken: string, initialMedias: MediaWithImages[] }) => {
   
@@ -46,7 +47,7 @@ export const MediaMap = ({ accessToken, initialMedias }: { accessToken: string, 
       body: JSON.stringify({ year, event, id }),
     });
     const medias = await res.json()
-    console.log("New medias fetched:", medias.length);
+    // console.log("New medias fetched:", medias.length);
     
     setMedias(medias)
   };
@@ -178,6 +179,7 @@ export const MediaMap = ({ accessToken, initialMedias }: { accessToken: string, 
     { showDetailsPopup && (
       <ImageDetailsPopup selectedMedia={selectedMedia} medias={medias} />
     )}
+      <MapFilter getMedias={getMedias} />
       <RmglInteractiveMap
         initialViewState={{
           bounds: [minLng, minLat, maxLng, maxLat],
