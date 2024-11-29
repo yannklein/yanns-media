@@ -26,7 +26,7 @@ export const ImageDetailsPopup = ({
             .filter((media) => media.images.length > 0)
             .map((media) => (
               <img
-                className="aspect-square min-h-100 min-w-100 object-cover"
+                className="aspect-square min-h-[100%] min-w-[100%] w-[100%] h-[100%] object-cover"
                 src={medias.length > 34 ? '/tube-spinner.svg' : media.images[0].clPath}
                 alt={media.images[0].id}
                 key={media.images[0].id}
