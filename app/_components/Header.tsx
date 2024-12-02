@@ -3,8 +3,6 @@ import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
-import Image from 'next/image';
-
 const Header: React.FC = () => {
   const isActive: (pathname: string) => boolean = (pathname) =>
     usePathname() === pathname;
@@ -19,7 +17,7 @@ const Header: React.FC = () => {
           className={`flex lg:gap-3 items-center`}
           data-active={isActive('/')}
         >
-          <h1 className="ml-3 lg:ml-5 text-5xl font-bold text-slate-100 drop-shadow-sharp">
+          <h1 className="ml-3 lg:ml-5 text-5xl font-bold text-slate-100 drop-shadow-lg">
             Yann's media
           </h1>
         </Link>

@@ -22,10 +22,11 @@ const EventFilter = ({
   }) => void;
 }) => {
   const [selectedEvent, setSelectedEvent] = useState('');
-  const [events, setEvents] = useState([]);
+  const [events, setEvents] = useState<{ date: string; event: string }[]>([]);
 
-  const handleChange = (e: React.ChangeEvent<HTMLSelectElement>) => { 
-    const year = events.find( event => event.event === e.target.value ).date.split(" ")[0];
+  const handleChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    if (!events) return;
+    const year = events.find((event) => event.event === e.target.value)?.date.split(' ')[0];
     if (e.target.value === '') {
       setOptions({ ...options, event: undefined });
     } else {
@@ -38,10 +39,10 @@ const EventFilter = ({
       const res = await fetch(`/api/get-events`);
       const eventsData = await res.json();
       // console.log(eventsData);
-      
+
       setEvents(eventsData);
     };
-    if (events.length === 0 ) getEvents();
+    if (events.length === 0) getEvents();
     setSelectedEvent(options.event || '');
   }, [options]);
 
@@ -53,11 +54,15 @@ const EventFilter = ({
       value={selectedEvent}
     >
       <option value="">All events</option>
-      {events.map((event: { event: string; date: string }) => (
-        <option value={event.event} key={event.event}>
-          {event.date} - {event.event}
-        </option>
-      ))}
+      {events
+        .filter((e: { event: string; date: string }) =>
+          e.date.includes(options.year || ''),
+        )
+        .map((e: { event: string; date: string }) => (
+          <option value={e.event} key={e.event}>
+            {e.date} - {e.event}
+          </option>
+        ))}
     </select>
   );
 };
