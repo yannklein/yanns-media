@@ -34,5 +34,27 @@ model Image {
   version  Int
   media    Media   @relation(name: "MediaImages", fields: [mediaId], references: [id])
   mediaId  String
+  personOnImages  PersonOnImage[]     @relation(name: "ImagePersonOnImages")
   @@map(name: "images")
+}
+
+model Person {
+  id        String @default(cuid()) @id
+  createdAt             DateTime    @default(now()) @map(name: "created_at")
+  updatedAt             DateTime    @updatedAt @map(name: "updated_at")
+  name      String
+  embedding Float[]
+  personOnImages  PersonOnImage[]     @relation(name: "PersonPersonOnImages")
+  @@map(name: "persons")
+}
+
+model PersonOnImage {
+  id       String @default(cuid()) @id
+  createdAt             DateTime    @default(now()) @map(name: "created_at")
+  updatedAt             DateTime    @updatedAt @map(name: "updated_at")
+  image    Image   @relation(name: "ImagePersonOnImages", fields: [imageId], references: [id])
+  imageId  String
+  person    Person   @relation(name: "PersonPersonOnImages", fields: [personId], references: [id])
+  personId  String
+  @@map(name: "person_on_images")
 }
