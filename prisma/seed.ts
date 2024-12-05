@@ -57,6 +57,7 @@ const logger = (message: string) => {
 };
 
 async function resetDb() {
+  await prisma.personOnImage.deleteMany({});
   await prisma.image.deleteMany({});
   await prisma.media.deleteMany({});
 
@@ -462,7 +463,7 @@ Seeding started! (${seedStart})
     logger('Cleared up!');
   }
 
-  for (const year of ['2022']) {
+  for (const year of ['2020', '2021' ,'2022', '2023']) {
     if (process.env.SOURCE_SERVICE === 'dropbox') {
       console.log('Getting seeds from Dropbox...');
       await getSeedsFromDropbox(year);

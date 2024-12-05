@@ -3,15 +3,18 @@
 import { useEffect, useState } from "react";
 import YearFilter from "./YearFilter";
 import EventFilter from "./EventFilter";
+import PersonFilter from "./PersonFilter";
 
 const MapFilter = ({
   getMedias,
 }: {
   getMedias: ({
+    person,
     year,
     event,
     id,
   }: {
+    person?: string;
     year?: string;
     event?: string;
     id?: string;
@@ -20,7 +23,7 @@ const MapFilter = ({
 
   const [options, setOptions] = useState({});
  
-  useEffect(() => {
+  useEffect(() => {    
     getMedias(options);
   }, [options]);
 
@@ -29,6 +32,7 @@ const MapFilter = ({
       <div className="flex gap-1">
         <EventFilter options={options} setOptions={setOptions} />
         <YearFilter options={options} setOptions={setOptions} />
+        <PersonFilter options={options} setOptions={setOptions} />
         <button className="bg-signature-gradient bg-opacity-80 border-2 px-2 py-1 rounded min-w-fit" onClick={() => setOptions({})}>Reset</button>
       </div>
     </div>
